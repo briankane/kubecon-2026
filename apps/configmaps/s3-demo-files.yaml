@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-demo-files
+  namespace: default
+data:
+  welcome.txt: |
+    Welcome to KubeCon 2025 S3 Demo!
+
+    This file was created using KubeVela and Crossplane.
+    You're viewing this through our custom S3 browser web app.
+
+    Tools used:
+    - KubeVela for application orchestration
+    - Crossplane for S3 infrastructure
+    - Python Flask for the web interface
+
+    Enjoy exploring the bucket contents!
+
+  demo-data.json: |
+    {
+      "event": "KubeCon 2025",
+      "demo": "S3 Browser with Live Content",
+      "created_by": "KubeVela + Crossplane",
+      "bucket_contents": [
+        "welcome.txt",
+        "demo-data.json",
+        "README.md"
+      ],
+      "technologies": {
+        "orchestration": "KubeVela",
+        "infrastructure": "Crossplane",
+        "runtime": "Kubernetes",
+        "web_framework": "Python Flask",
+        "cloud_storage": "AWS S3"
+      }
+    }
+
+  README.md: |
+    # KubeCon 2025 S3 Demo
+
+    ## Overview
+    This demonstration shows how to use **KubeVela** and **Crossplane** together to:
+
+    1. 🪣 **Create S3 buckets** declaratively
+    2. 📁 **Populate with content** using Infrastructure as Code
+    3. 🌐 **Build web applications** that interact with the infrastructure
+    4. 🔄 **Orchestrate dependencies** with workflows
+
+    ## Architecture
+    - **KubeVela Application** orchestrates the entire stack
+    - **Crossplane** manages AWS S3 resources
+    - **Python Flask app** provides the web interface
+    - **Workflow** ensures proper creation order
+
+    ## Live Demo
+    You're currently viewing this through our custom S3 browser!
+
+    ---
+    *Infrastructure as Code in action* ⚡

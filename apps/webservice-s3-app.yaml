@@ -1,0 +1,194 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: webservice-s3-demo
+  namespace: default
+spec:
+  components:
+    # ── S3 Bucket ─────────────────────────────────────────────────────────────
+    - name: demo-s3-bucket
+      type: s3-bucket
+      properties:
+        region: us-west-2
+        bucketName: webservice-demo-bkane-2
+      traits:
+        - type: s3-encryption
+          properties:
+            algorithm: AES256
+        - type: s3-public-access-block
+          properties:
+            blockPublicAcls: true
+            blockPublicPolicy: true
+            ignorePublicAcls: true
+            restrictPublicBuckets: true
+        - type: s3-tags
+          properties:
+            tags:
+              Environment: demo
+              Component: s3-storage
+              App: webservice-s3-demo
+
+    # ── S3 Objects (content injected by workflow from ConfigMaps) ─────────────
+    - name: welcome-file
+      type: s3-object
+      properties:
+        bucket: "PLACEHOLDER"
+        key: "welcome.txt"
+        content: "PLACEHOLDER"
+        contentType: "text/plain"
+
+    - name: demo-data
+      type: s3-object
+      properties:
+        bucket: "PLACEHOLDER"
+        key: "demo-data.json"
+        content: "PLACEHOLDER"
+        contentType: "application/json"
+
+    - name: readme-file
+      type: s3-object
+      properties:
+        bucket: "PLACEHOLDER"
+        key: "README.md"
+        content: "PLACEHOLDER"
+        contentType: "text/plain"
+
+    # ── Webservice ───────────────
+    - name: demo-webservice
+      type: webservice
+      properties:
+        image: python:3.9-slim
+        ports:
+          - port: 5000
+            expose: true
+        cmd:
+          - "sh"
+          - "-c"
+          - "pip install flask boto3 && python /app/app.py"
+        env:
+          - name: S3_BUCKET_ARN
+            value: "PLACEHOLDER"
+          - name: S3_BUCKET_NAME
+            value: "PLACEHOLDER"
+          - name: AWS_DEFAULT_REGION
+            value: "PLACEHOLDER"
+          - name: AWS_REGION
+            value: "PLACEHOLDER"
+          - name: AWS_SHARED_CREDENTIALS_FILE
+            value: "/aws/creds"
+        volumeMounts:
+          secret:
+            - name: aws-creds-vol
+              mountPath: /aws
+              secretName: aws-creds
+          configMap:
+            - name: app-source-vol
+              mountPath: /app
+              cmName: s3-browser-app
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+        - type: labels
+          properties:
+            app: webservice-s3-demo
+            component: webservice
+        - type: annotations
+          properties:
+            "app.kubernetes.io/name": webservice-s3-demo
+            "app.kubernetes.io/component": webservice
+
+  workflow:
+    steps:
+      # 1. Read S3 demo file contents from ConfigMap
+      - name: read-s3-files
+        type: read-object
+        properties:
+          apiVersion: v1
+          kind: ConfigMap
+          name: s3-demo-files
+          namespace: default
+        outputs:
+          - name: welcome-content
+            valueFrom: output.$returns.value.data["welcome.txt"]
+          - name: demo-data-content
+            valueFrom: output.$returns.value.data["demo-data.json"]
+          - name: readme-content
+            valueFrom: output.$returns.value.data["README.md"]
+
+      # 2. Provision S3 bucket, capture outputs
+      - name: create-s3-bucket
+        type: apply-component
+        properties:
+          component: demo-s3-bucket
+        outputs:
+          - name: bucket-arn
+            valueFrom: output.status.atProvider.arn
+          - name: bucket-id
+            valueFrom: output.status.atProvider.id
+          - name: bucket-region
+            valueFrom: output.status.atProvider.region
+
+      # 3. Populate bucket with files from ConfigMap (parallel)
+      - name: create-welcome-file
+        type: apply-component
+        dependsOn: ["create-s3-bucket", "read-s3-files"]
+        properties:
+          component: welcome-file
+        inputs:
+          - from: bucket-id
+            parameterKey: bucket
+          - from: bucket-region
+            parameterKey: region
+          - from: welcome-content
+            parameterKey: content
+
+      - name: create-demo-data
+        type: apply-component
+        dependsOn: ["create-s3-bucket", "read-s3-files"]
+        properties:
+          component: demo-data
+        inputs:
+          - from: bucket-id
+            parameterKey: bucket
+          - from: bucket-region
+            parameterKey: region
+          - from: demo-data-content
+            parameterKey: content
+
+      - name: create-readme-file
+        type: apply-component
+        dependsOn: ["create-s3-bucket", "read-s3-files"]
+        properties:
+          component: readme-file
+        inputs:
+          - from: bucket-id
+            parameterKey: bucket
+          - from: bucket-region
+            parameterKey: region
+          - from: readme-content
+            parameterKey: content
+
+      # 4. Deploy webservice with bucket details injected as env vars
+      #    (app.py is mounted from s3-browser-app ConfigMap)
+      - name: create-webservice
+        type: apply-component
+        dependsOn: ["create-s3-bucket"]
+        properties:
+          component: demo-webservice
+        inputs:
+          - from: bucket-arn
+            parameterKey: env[0].value
+          - from: bucket-id
+            parameterKey: env[1].value
+          - from: bucket-region
+            parameterKey: env[2].value
+          - from: bucket-region
+            parameterKey: env[3].value
