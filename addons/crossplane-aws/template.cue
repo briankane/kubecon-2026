@@ -7,11 +7,12 @@ output: {
 		components: [
 			provideraws,
 			providerawss3,
+			providerawsdynamodb,
 			if parameter.createDefaultProviderConfig {
 				awsproviderconfig
 			}
 		]
-		
+
 		// Workflow to ensure providers are ready before creating ProviderConfig
 		workflow: {
 			steps: [
@@ -30,10 +31,19 @@ output: {
 						component: providerawss3.name
 					}
 				},
+				{
+					name: "install-provider-aws-dynamodb"
+					type: "apply-component"
+					dependsOn: ["install-provider-aws"]
+					properties: {
+						component: providerawsdynamodb.name
+					}
+				},
 				if parameter.createDefaultProviderConfig {
 					{
 						name: "create-provider-config"
 						type: "apply-component"
+						dependsOn: ["install-provider-aws-s3", "install-provider-aws-dynamodb"]
 						properties: {
 							component: awsproviderconfig.name
 						}

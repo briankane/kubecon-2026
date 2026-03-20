@@ -37,7 +37,12 @@ template: {
 		apiVersion: "s3.aws.upbound.io/v1beta2"
 		kind:       "Bucket"
 		metadata: {
-			name: "\(context.appName)-\(context.name)"
+			if context.custom.tenant != _|_ {
+				name: "\(context.custom.tenant)-\(context.appName)-\(context.name)-\(parameter.region)"
+			}
+			if context.custom.tenant == _|_ {
+				name: "\(context.appName)-\(context.name)-\(parameter.region)"
+			}
 		}
 		spec: {
 			forProvider: {
@@ -50,6 +55,9 @@ template: {
 					"crossplane-name":            context.name
 					"crossplane-providerconfig":  parameter.providerConfigRef
 					"managed-by":                 "crossplane"
+					if context.custom.tenant != _|_ {
+						"tenant": context.custom.tenant
+					}
 				}
 			}
 			deletionPolicy: "Delete"

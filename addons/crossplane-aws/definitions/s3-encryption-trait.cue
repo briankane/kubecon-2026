@@ -4,13 +4,14 @@ package main
 	annotations: {}
 	labels: {}
 	attributes: {
-		appliesToWorkloads: ["s3-bucket"]
+		appliesToWorkloads: ["*"]
 	}
 	description: "Configure server-side encryption for S3 bucket"
 	type:        "trait"
 }
 
 template: {
+	// +patchStrategy=jsonMergePatch
 	patch: {
 		spec: forProvider: serverSideEncryptionConfiguration: [{
 			rules: [{

@@ -1,0 +1,7 @@
+description: Global policy definitions for KubeVela applications.
+icon: ""
+invisible: false
+name: policies
+tags:
+- policies
+version: 1.0.0

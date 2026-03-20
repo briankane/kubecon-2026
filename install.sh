@@ -122,6 +122,10 @@ vela addon push crossplane-aws localcm
 echo "📦 Packaging and pushing tenant addon..."
 vela addon push tenant localcm
 
+# Package and push policies addon
+echo "📦 Packaging and pushing policies addon..."
+vela addon push policies localcm
+
 cd "${SCRIPT_DIR}"
 
 # Check if vela-workflow is already running
@@ -142,6 +146,9 @@ vela addon enable demo-resources --override-definitions
 
 echo "⏳ Waiting for demo-resources addon to be ready..."
 sleep 5
+
+echo "📦 Installing policies addon from registry..."
+vela addon enable policies --override-definitions
 
 # Install kube-trigger CRD definitions
 echo "📦 Installing kube-trigger CRD definitions..."

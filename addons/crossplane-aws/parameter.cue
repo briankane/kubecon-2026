@@ -7,6 +7,7 @@ parameter: {
 	// Version of the AWS provider family to install
 	awsFamilyVersion: string | *"v1.23.2"
 	awsS3Version: string | *"v1.23.2"
+	awsDynamoDBVersion: string | *"v1.23.2"
 	
 	// Create default ProviderConfig
 	createDefaultProviderConfig: bool | *true

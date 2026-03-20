@@ -4,12 +4,17 @@ metadata:
   name: webservice-s3-demo
   namespace: default
 spec:
+  policies:
+    - name: aws-region
+      type: region
+      properties:
+        region: us-west-2
+
   components:
     # ── S3 Bucket ─────────────────────────────────────────────────────────────
     - name: demo-s3-bucket
       type: s3-bucket
       properties:
-        region: us-west-2
         bucketName: webservice-demo-bkane-2
       traits:
         - type: s3-encryption
@@ -28,32 +33,43 @@ spec:
               Component: s3-storage
               App: webservice-s3-demo
 
-    # ── S3 Objects (content injected by workflow from ConfigMaps) ─────────────
+    # ── DynamoDB Table (orphaned on delete to persist address book entries) ───
+    - name: demo-dynamodb-table
+      type: dynamodb-table
+      properties:
+        hashKeyName: id
+        hashKeyType: S
+      traits:
+        - type: crossplane-lifecycle
+          properties:
+            policy: Orphan
+
+    # ── S3 Objects (content injected by workflow from ConfigMap) ──────────────
     - name: welcome-file
       type: s3-object
       properties:
-        bucket: "PLACEHOLDER"
+        bucket: "<WORKFLOW PROVIDED>"
         key: "welcome.txt"
-        content: "PLACEHOLDER"
+        content: "<WORKFLOW PROVIDED>"
         contentType: "text/plain"
 
     - name: demo-data
       type: s3-object
       properties:
-        bucket: "PLACEHOLDER"
+        bucket: "<WORKFLOW PROVIDED>"
         key: "demo-data.json"
-        content: "PLACEHOLDER"
+        content: "<WORKFLOW PROVIDED>"
         contentType: "application/json"
 
     - name: readme-file
       type: s3-object
       properties:
-        bucket: "PLACEHOLDER"
+        bucket: "<WORKFLOW PROVIDED>"
         key: "README.md"
-        content: "PLACEHOLDER"
+        content: "<WORKFLOW PROVIDED>"
         contentType: "text/plain"
 
-    # ── Webservice ───────────────
+    # ── Webservice ────────────────────────────────────────────────────────────
     - name: demo-webservice
       type: webservice
       properties:
@@ -67,13 +83,23 @@ spec:
           - "pip install flask boto3 && python /app/app.py"
         env:
           - name: S3_BUCKET_ARN
-            value: "PLACEHOLDER"
+            value: "<WORKFLOW PROVIDED>"
           - name: S3_BUCKET_NAME
-            value: "PLACEHOLDER"
+            value: "<WORKFLOW PROVIDED>"
+          - name: DYNAMODB_TABLE_NAME
+            value: "<WORKFLOW PROVIDED>"
+          - name: DYNAMODB_TABLE_ARN
+            value: "<WORKFLOW PROVIDED>"
           - name: AWS_DEFAULT_REGION
-            value: "PLACEHOLDER"
+            value: "<WORKFLOW PROVIDED>"
           - name: AWS_REGION
-            value: "PLACEHOLDER"
+            value: "<WORKFLOW PROVIDED>"
+          - name: KUBEVELA_APP_NAME
+            value: "<WORKFLOW PROVIDED>"
+          - name: KUBEVELA_APP_NAMESPACE
+            value: "<WORKFLOW PROVIDED>"
+          - name: KUBEVELA_APP_CREATED_AT
+            value: "<WORKFLOW PROVIDED>"
           - name: AWS_SHARED_CREDENTIALS_FILE
             value: "/aws/creds"
         volumeMounts:
@@ -123,7 +149,7 @@ spec:
           - name: readme-content
             valueFrom: output.$returns.value.data["README.md"]
 
-      # 2. Provision S3 bucket, capture outputs
+      # 2. Provision S3 bucket and DynamoDB table in parallel
       - name: create-s3-bucket
         type: apply-component
         properties:
@@ -136,7 +162,17 @@ spec:
           - name: bucket-region
             valueFrom: output.status.atProvider.region
 
-      # 3. Populate bucket with files from ConfigMap (parallel)
+      - name: create-dynamodb-table
+        type: apply-component
+        properties:
+          component: demo-dynamodb-table
+        outputs:
+          - name: table-name
+            valueFrom: output.status.atProvider.id
+          - name: table-arn
+            valueFrom: output.status.atProvider.arn
+
+      # 3. Populate S3 bucket with files from ConfigMap (parallel)
       - name: create-welcome-file
         type: apply-component
         dependsOn: ["create-s3-bucket", "read-s3-files"]
@@ -176,11 +212,26 @@ spec:
           - from: readme-content
             parameterKey: content
 
-      # 4. Deploy webservice with bucket details injected as env vars
-      #    (app.py is mounted from s3-browser-app ConfigMap)
+      # 4. Read Application context
+      - name: read-app-context
+        type: read-object
+        properties:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Application
+          name: webservice-s3-demo
+          namespace: default
+        outputs:
+          - name: app-name
+            valueFrom: output.$returns.value.metadata.name
+          - name: app-namespace
+            valueFrom: output.$returns.value.metadata.namespace
+          - name: app-created-at
+            valueFrom: output.$returns.value.metadata.creationTimestamp
+
+      # 5. Deploy webservice with all details injected as env vars
       - name: create-webservice
         type: apply-component
-        dependsOn: ["create-s3-bucket"]
+        dependsOn: ["create-s3-bucket", "create-dynamodb-table", "read-app-context"]
         properties:
           component: demo-webservice
         inputs:
@@ -188,7 +239,17 @@ spec:
             parameterKey: env[0].value
           - from: bucket-id
             parameterKey: env[1].value
-          - from: bucket-region
+          - from: table-name
             parameterKey: env[2].value
-          - from: bucket-region
+          - from: table-arn
             parameterKey: env[3].value
+          - from: bucket-region
+            parameterKey: env[4].value
+          - from: bucket-region
+            parameterKey: env[5].value
+          - from: app-name
+            parameterKey: env[6].value
+          - from: app-namespace
+            parameterKey: env[7].value
+          - from: app-created-at
+            parameterKey: env[8].value

@@ -4,13 +4,14 @@ package main
 	annotations: {}
 	labels: {}
 	attributes: {
-		appliesToWorkloads: ["s3-bucket"]
+		appliesToWorkloads: ["*"]
 	}
 	description: "Configure public access blocking for S3 bucket"
 	type:        "trait"
 }
 
 template: {
+	// +patchStrategy=jsonMergePatch
 	patch: {
 		spec: forProvider: publicAccessBlockConfiguration: [{
 			blockPublicAcls:       parameter.blockPublicAcls
